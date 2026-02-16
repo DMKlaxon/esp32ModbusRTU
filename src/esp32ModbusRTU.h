@@ -25,7 +25,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef esp32ModbusRTU_h
 #define esp32ModbusRTU_h
 
-#if defined ARDUINO_ARCH_ESP32
 
 #ifndef QUEUE_SIZE
 #define QUEUE_SIZE 100
@@ -94,12 +93,3 @@ private:
   esp32Modbus::MBRTUOnErrorToken _onErrorToken;
 };
 
-#endif
-
-#elif defined VITOWIFI_TEST
-
-#else
-
-#pragma message "no suitable platform"
-
-#endif

@@ -24,8 +24,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "esp32ModbusRTU.h"
 
-#if defined ARDUINO_ARCH_ESP32
-
 using namespace esp32ModbusRTUInternals;  // NOLINT
 
 esp32ModbusRTU::esp32ModbusRTU(HardwareSerial* serial, int8_t rtsPin) :
@@ -163,6 +161,7 @@ void esp32ModbusRTU::_handleConnection(esp32ModbusRTU* instance) {
       }
       delete request;  // object created in public methods
       delete response;  // object created in _receive()
+      delay(1);
     }
   }
 }
@@ -226,6 +225,8 @@ ModbusResponse* esp32ModbusRTU::_receive(ModbusRequest* request) {
       } else if (millis() - TimeOut >= TimeOutValue) {
         errorCode = esp32Modbus::TIMEOUT;
         state = ERROR_EXIT;
+      }else{
+        delayMicroseconds(1);
       }
       break;
     // IN_PACKET: read data until a gap of at least _interval time passed without another byte arriving
@@ -287,6 +288,7 @@ ModbusResponse* esp32ModbusRTU::_receive(ModbusRequest* request) {
     case FINISHED:
       break;
     }
+    delayMicroseconds(1);
   }
 
   // Deallocate buffer
@@ -295,11 +297,3 @@ ModbusResponse* esp32ModbusRTU::_receive(ModbusRequest* request) {
 
   return response;
 }
-
-#elif defined ESP32MODBUSRTU_TEST
-
-#else
-
-#pragma message "no suitable platform"
-
-#endif
