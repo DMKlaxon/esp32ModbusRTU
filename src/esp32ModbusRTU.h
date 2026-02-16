@@ -24,7 +24,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #ifndef esp32ModbusRTU_h
 #define esp32ModbusRTU_h
-
+#endif
 
 #ifndef QUEUE_SIZE
 #define QUEUE_SIZE 100
