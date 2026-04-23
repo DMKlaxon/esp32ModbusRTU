@@ -24,30 +24,33 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "esp32ModbusRTU.h"
 
-using namespace esp32ModbusRTUInternals;  // NOLINT
+using namespace esp32ModbusRTUInternals; // NOLINT
 
-esp32ModbusRTU::esp32ModbusRTU(HardwareSerial* serial, int8_t rtsPin) :
-  TimeOutValue(TIMEOUT_MS),
-  _serial(serial),
-  _lastMicros(0),
-  _interval(0),
-  _rtsPin(rtsPin),
-  _task(nullptr),
-  _queue(nullptr),
-  _onData(nullptr),
-  _onError(nullptr),
-  _onDataToken(nullptr),
-  _onErrorToken(nullptr)  {
-    _queue = xQueueCreate(QUEUE_SIZE, sizeof(ModbusRequest*));
+esp32ModbusRTU::esp32ModbusRTU(HardwareSerial *serial, int8_t rtsPin) : TimeOutValue(TIMEOUT_MS),
+                                                                        _serial(serial),
+                                                                        _lastMicros(0),
+                                                                        _interval(0),
+                                                                        _rtsPin(rtsPin),
+                                                                        _task(nullptr),
+                                                                        _queue(nullptr),
+                                                                        _onData(nullptr),
+                                                                        _onError(nullptr),
+                                                                        _onDataToken(nullptr),
+                                                                        _onErrorToken(nullptr)
+{
+  _queue = xQueueCreate(QUEUE_SIZE, sizeof(ModbusRequest *));
 }
 
-esp32ModbusRTU::~esp32ModbusRTU() {
+esp32ModbusRTU::~esp32ModbusRTU()
+{
   // TODO(bertmelis): kill task and cleanup
 }
 
-void esp32ModbusRTU::begin(int coreID /* = -1 */) {
+void esp32ModbusRTU::begin(int coreID /* = -1 */)
+{
   // If rtsPin is >=0, the RS485 adapter needs send/receive toggle
-  if (_rtsPin >= 0) {
+  if (_rtsPin >= 0)
+  {
     pinMode(_rtsPin, OUTPUT);
     digitalWrite(_rtsPin, LOW);
   }
@@ -55,134 +58,174 @@ void esp32ModbusRTU::begin(int coreID /* = -1 */) {
   xTaskCreatePinnedToCore((TaskFunction_t)&_handleConnection, "esp32ModbusRTU", 4096, this, 15, &_task, coreID >= 0 ? coreID : NULL); // KLAXON - TEST EXTENSIVELY RELEASE
   // silent interval is at least 3.5x character time
   // _interval = 35000000UL / _serial->baudRate();  // 3.5 * 10 bits * 1000 µs * 1000 ms / baud
-  _interval = 40000000UL / _serial->baudRate();  // 4 * 10 bits * 1000 µs * 1000 ms / baud
+  _interval = 40000000UL / _serial->baudRate(); // 4 * 10 bits * 1000 µs * 1000 ms / baud
 
   // The following is okay for sending at any baud rate, but problematic at receiving with baud rates above 35000,
   // since the calculated interval will be below 1000µs!
   // f.i. 115200bd ==> interval=304µs
-  if (_interval < 1000) _interval = 1000;  // minimum of 1msec interval
+  if (_interval < 1000)
+    _interval = 1000; // minimum of 1msec interval
 }
 
-bool esp32ModbusRTU::readDiscreteInputs(uint8_t slaveAddress, uint16_t address, uint16_t numberCoils, uint32_t token) {
-  ModbusRequest* request = new ModbusRequest02(slaveAddress, address, numberCoils, token);
+bool esp32ModbusRTU::readDiscreteInputs(uint8_t slaveAddress, uint16_t address, uint16_t numberCoils, uint32_t token)
+{
+  ModbusRequest *request = new ModbusRequest02(slaveAddress, address, numberCoils, token);
   return _addToQueue(request);
 }
-bool esp32ModbusRTU::readHoldingRegisters(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters, uint32_t token) {
-  ModbusRequest* request = new ModbusRequest03(slaveAddress, address, numberRegisters, token);
-  return _addToQueue(request);
-}
-
-bool esp32ModbusRTU::readInputRegisters(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters, uint32_t token) {
-  ModbusRequest* request = new ModbusRequest04(slaveAddress, address, numberRegisters, token);
-  return _addToQueue(request);
-}
-
-bool esp32ModbusRTU::writeSingleHoldingRegister(uint8_t slaveAddress, uint16_t address, uint16_t data, uint32_t token) {
-  ModbusRequest* request = new ModbusRequest06(slaveAddress, address, data, token);
+bool esp32ModbusRTU::readHoldingRegisters(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters, uint32_t token)
+{
+  ModbusRequest *request = new ModbusRequest03(slaveAddress, address, numberRegisters, token);
   return _addToQueue(request);
 }
 
-bool esp32ModbusRTU::writeMultHoldingRegisters(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters, uint8_t* data, uint32_t token) {
-  ModbusRequest* request = new ModbusRequest16(slaveAddress, address, numberRegisters, data, token);
+bool esp32ModbusRTU::readInputRegisters(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters, uint32_t token)
+{
+  ModbusRequest *request = new ModbusRequest04(slaveAddress, address, numberRegisters, token);
   return _addToQueue(request);
 }
 
-bool esp32ModbusRTU::rawRequest(uint8_t slaveAddress, uint8_t functionCode, uint16_t dataLength, uint8_t* data, uint32_t token) {
-  ModbusRequest* request = new ModbusRequestRaw(slaveAddress, functionCode, dataLength, data, token);
+bool esp32ModbusRTU::writeSingleHoldingRegister(uint8_t slaveAddress, uint16_t address, uint16_t data, uint32_t token)
+{
+  ModbusRequest *request = new ModbusRequest06(slaveAddress, address, data, token);
   return _addToQueue(request);
 }
 
-void esp32ModbusRTU::onData(esp32Modbus::MBRTUOnData handler) {
+bool esp32ModbusRTU::writeMultHoldingRegisters(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters, uint8_t *data, uint32_t token)
+{
+  ModbusRequest *request = new ModbusRequest16(slaveAddress, address, numberRegisters, data, token);
+  return _addToQueue(request);
+}
+
+bool esp32ModbusRTU::rawRequest(uint8_t slaveAddress, uint8_t functionCode, uint16_t dataLength, uint8_t *data, uint32_t token)
+{
+  ModbusRequest *request = new ModbusRequestRaw(slaveAddress, functionCode, dataLength, data, token);
+  return _addToQueue(request);
+}
+
+void esp32ModbusRTU::onData(esp32Modbus::MBRTUOnData handler)
+{
   _onData = handler;
 }
 
-void esp32ModbusRTU::onError(esp32Modbus::MBRTUOnError handler) {
+void esp32ModbusRTU::onError(esp32Modbus::MBRTUOnError handler)
+{
   _onError = handler;
 }
 
-void esp32ModbusRTU::onDataToken(esp32Modbus::MBRTUOnDataToken handler) {
+void esp32ModbusRTU::onDataToken(esp32Modbus::MBRTUOnDataToken handler)
+{
   _onDataToken = handler;
 }
 
-void esp32ModbusRTU::onErrorToken(esp32Modbus::MBRTUOnErrorToken handler) {
+void esp32ModbusRTU::onErrorToken(esp32Modbus::MBRTUOnErrorToken handler)
+{
   _onErrorToken = handler;
 }
 
-bool esp32ModbusRTU::_addToQueue(ModbusRequest* request) {
-  if (!request) {
+bool esp32ModbusRTU::_addToQueue(ModbusRequest *request)
+{
+  if (!request)
+  {
     return false;
-  } else if (xQueueSend(_queue, reinterpret_cast<void*>(&request), (TickType_t)0) != pdPASS) {
+  }
+  else if (xQueueSend(_queue, reinterpret_cast<void *>(&request), (TickType_t)0) != pdPASS)
+  {
     delete request;
     return false;
-  } else {
+  }
+  else
+  {
     return true;
   }
 }
 
-void esp32ModbusRTU::_handleConnection(esp32ModbusRTU* instance) {
-  while (1) {
-    ModbusRequest* request;
-    if (pdTRUE == xQueueReceive(instance->_queue, &request, portMAX_DELAY)) {  // block and wait for queued item
-      instance->_send(request->getMessage(), request->getSize());
-      ModbusResponse* response = instance->_receive(request);
-      if (response->isSucces()) {
-		// if the non-token onData handler is set, call it
+void esp32ModbusRTU::_handleConnection(esp32ModbusRTU *instance)
+{
+  uint8_t transmissionAttempts = 0;
+  while (1)
+  {
+    ModbusRequest *request;
+    if (pdTRUE == xQueueReceive(instance->_queue, &request, portMAX_DELAY))
+    { // block and wait for queued item
+      ModbusResponse *response;
+
+      do
+      {
+        transmissionAttempts++;
+        instance->_send(request->getMessage(), request->getSize());
+        response = instance->_receive(request);
+      } while (!response->isSucces() && transmissionAttempts < MAX_TRANSMISSION_ATTEMPTS);
+      transmissionAttempts = 0;
+
+      if (response->isSucces())
+      {
+        // if the non-token onData handler is set, call it
         if (instance->_onData)
           // instance->_onData(
-            // response->getSlaveAddress(),
-            // response->getFunctionCode(),
-			// request->getAddress(),
-            // response->getData(),
-            // response->getByteCount());
+          // response->getSlaveAddress(),
+          // response->getFunctionCode(),
+          // request->getAddress(),
+          // response->getData(),
+          // response->getByteCount());
 
-		  instance->_onData(
-            response->getSlaveAddress(),
-            response->getFunctionCode(),
-			request->getAddress(),
-            response->getData(),
-            response->getByteCount(),
-			request->getMessage()[4],
-			request->getMessage()[5]
-			);			
-			
+          instance->_onData(
+              response->getSlaveAddress(),
+              response->getFunctionCode(),
+              request->getAddress(),
+              response->getData(),
+              response->getByteCount(),
+              request->getMessage()[4],
+              request->getMessage()[5]);
+
         // else, if the token onData handler is set, call that
         else if (instance->_onDataToken)
           instance->_onDataToken(
-            response->getSlaveAddress(),
-            response->getFunctionCode(),
-            response->getData(),
-            response->getByteCount(),
-            response->getToken());
-      } else {
+              response->getSlaveAddress(),
+              response->getFunctionCode(),
+              response->getData(),
+              response->getByteCount(),
+              response->getToken());
+      }
+      else
+      {
         // Same for error responses. non-token onError set?
-        if (instance->_onError) instance->_onError(response->getError());
+        if (instance->_onError)
+          instance->_onError(response->getError());
         // No, but token onError instead?
-        else if (instance->_onErrorToken) instance->_onErrorToken(response->getError(), response->getToken());
+        else if (instance->_onErrorToken)
+          instance->_onErrorToken(response->getError(), response->getToken());
       }
       delete request;  // object created in public methods
-      delete response;  // object created in _receive()
-      delay(1);
+      delete response; // object created in _receive()
+      // delay(1);
     }
   }
 }
 
-void esp32ModbusRTU::_send(uint8_t* data, uint8_t length) {
-  while (micros() - _lastMicros < _interval) delayMicroseconds(1);  // respect _interval
+void esp32ModbusRTU::_send(uint8_t *data, uint8_t length)
+{
+  while (micros() - _lastMicros < _interval)
+    delayMicroseconds(1); // respect _interval
   // Toggle rtsPin, if necessary
-  if (_rtsPin >= 0) digitalWrite(_rtsPin, HIGH);
+  if (_rtsPin >= 0)
+    digitalWrite(_rtsPin, HIGH);
   _serial->write(data, length);
   _serial->flush();
   // Toggle rtsPin, if necessary
-  if (_rtsPin >= 0) digitalWrite(_rtsPin, LOW);
+  if (_rtsPin >= 0)
+    digitalWrite(_rtsPin, LOW);
   _lastMicros = micros();
 }
 
 // Adjust timeout on MODBUS - some slaves require longer/allow for shorter times
-void esp32ModbusRTU::setTimeOutValue(uint32_t tov) {
-  if (tov) TimeOutValue = tov;
+void esp32ModbusRTU::setTimeOutValue(uint32_t tov)
+{
+  if (tov)
+    TimeOutValue = tov;
 }
 
-ModbusResponse* esp32ModbusRTU::_receive(ModbusRequest* request) {
+ModbusResponse *esp32ModbusRTU::_receive(ModbusRequest *request)
+{
   // Allocate initial buffer size
   const uint16_t BUFBLOCKSIZE(128);
   uint8_t *buffer = new uint8_t[BUFBLOCKSIZE];
@@ -192,7 +235,15 @@ ModbusResponse* esp32ModbusRTU::_receive(ModbusRequest* request) {
   register uint16_t bufferPtr = 0;
 
   // State machine states
-  enum STATES : uint8_t { WAIT_INTERVAL = 0, WAIT_DATA, IN_PACKET, DATA_READ, ERROR_EXIT, FINISHED };
+  enum STATES : uint8_t
+  {
+    WAIT_INTERVAL = 0,
+    WAIT_DATA,
+    IN_PACKET,
+    DATA_READ,
+    ERROR_EXIT,
+    FINISHED
+  };
   register STATES state = WAIT_INTERVAL;
 
   // Timeout tracker
@@ -202,41 +253,53 @@ ModbusResponse* esp32ModbusRTU::_receive(ModbusRequest* request) {
   esp32Modbus::Error errorCode = esp32Modbus::SUCCES;
 
   // Return data object
-  ModbusResponse* response = nullptr;
+  ModbusResponse *response = nullptr;
 
-  while (state != FINISHED) {
-    switch (state) {
+  while (state != FINISHED)
+  {
+    switch (state)
+    {
     // WAIT_INTERVAL: spend the remainder of the bus quiet time waiting
     case WAIT_INTERVAL:
       // Time passed?
-      if (micros() - _lastMicros >= _interval) {
+      if (micros() - _lastMicros >= _interval)
+      {
         // Yes, proceed to reading data
         state = WAIT_DATA;
-      } else {
+      }
+      else
+      {
         // No, wait a little longer
         delayMicroseconds(1);
       }
       break;
     // WAIT_DATA: await first data byte, but watch timeout
     case WAIT_DATA:
-      if (_serial->available()) {
+      if (_serial->available())
+      {
         state = IN_PACKET;
         _lastMicros = micros();
-      } else if (millis() - TimeOut >= TimeOutValue) {
+      }
+      else if (millis() - TimeOut >= TimeOutValue)
+      {
         errorCode = esp32Modbus::TIMEOUT;
         state = ERROR_EXIT;
-      }else{
+      }
+      else
+      {
         delayMicroseconds(1);
       }
       break;
     // IN_PACKET: read data until a gap of at least _interval time passed without another byte arriving
     case IN_PACKET:
       // Data waiting and space left in buffer?
-      while (_serial->available()) {
+      while (_serial->available())
+      {
         // Yes. Catch the byte
         buffer[bufferPtr++] = _serial->read();
         // Buffer full?
-        if (bufferPtr >= bufferBlocks * BUFBLOCKSIZE) {
+        if (bufferPtr >= bufferBlocks * BUFBLOCKSIZE)
+        {
           // Yes. Extend it by another block
           bufferBlocks++;
           uint8_t *temp = new uint8_t[bufferBlocks * BUFBLOCKSIZE];
@@ -256,17 +319,18 @@ ModbusResponse* esp32ModbusRTU::_receive(ModbusRequest* request) {
       // the core FIFO handling takes much longer than that.
       //
       // Workaround: uncomment the following line to wait for 16ms(!) for the handling to finish:
-      if (micros() - _lastMicros >= 16000) {
-      //
-      // Alternate solution: is to modify the uartEnableInterrupt() function in
-      // the core implementation file 'esp32-hal-uart.c', to have the line
-      //    'uart->dev->conf1.rxfifo_full_thrhd = 1; // 112;'
-      // This will change the number of bytes received to trigger the copy interrupt
-      // from 112 (as is implemented in the core) to 1, effectively firing the interrupt
-      // for any single byte.
-      // Then you may uncomment the line below instead:
-      // if (micros() - _lastMicros >= _interval) {
-      //
+      if (micros() - _lastMicros >= 16000)
+      {
+        //
+        // Alternate solution: is to modify the uartEnableInterrupt() function in
+        // the core implementation file 'esp32-hal-uart.c', to have the line
+        //    'uart->dev->conf1.rxfifo_full_thrhd = 1; // 112;'
+        // This will change the number of bytes received to trigger the copy interrupt
+        // from 112 (as is implemented in the core) to 1, effectively firing the interrupt
+        // for any single byte.
+        // Then you may uncomment the line below instead:
+        // if (micros() - _lastMicros >= _interval) {
+        //
         state = DATA_READ;
       }
       break;

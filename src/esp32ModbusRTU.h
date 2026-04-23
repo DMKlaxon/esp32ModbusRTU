@@ -34,6 +34,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define TIMEOUT_MS 100 // 200
 #endif
 
+#ifndef MAX_TRANSMISSION_ATTEMPTS
+#define MAX_TRANSMISSION_ATTEMPTS 2
+#endif
+
 #include <functional>
 
 extern "C"
@@ -92,4 +96,3 @@ private:
   esp32Modbus::MBRTUOnDataToken _onDataToken;
   esp32Modbus::MBRTUOnErrorToken _onErrorToken;
 };
-
