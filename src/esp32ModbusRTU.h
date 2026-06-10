@@ -52,6 +52,8 @@ extern "C"
 #include "esp32ModbusTypeDefs.h"
 #include "ModbusMessage.h"
 
+#include "esp32ModbusStatistics.h"
+
 class esp32ModbusRTU
 {
 public:
@@ -69,6 +71,9 @@ public:
   void onDataToken(esp32Modbus::MBRTUOnDataToken handler);
   void onErrorToken(esp32Modbus::MBRTUOnErrorToken handler);
   void setTimeOutValue(uint32_t tov);
+
+
+  esp32ModbusStatistics::Statistics statistics;
 
   uint8_t getQueueSize()
   {
