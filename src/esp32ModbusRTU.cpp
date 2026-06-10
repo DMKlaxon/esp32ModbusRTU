@@ -65,6 +65,8 @@ void esp32ModbusRTU::begin(int coreID /* = -1 */)
   // f.i. 115200bd ==> interval=304µs
   if (_interval < 1000)
     _interval = 1000; // minimum of 1msec interval
+
+  statistics.begin();
 }
 
 bool esp32ModbusRTU::readDiscreteInputs(uint8_t slaveAddress, uint16_t address, uint16_t numberCoils, uint32_t token)
@@ -131,6 +133,8 @@ bool esp32ModbusRTU::_addToQueue(ModbusRequest *request)
   else if (xQueueSend(_queue, reinterpret_cast<void *>(&request), (TickType_t)0) != pdPASS)
   {
     delete request;
+    // buffer full, packets are lost
+    statistics.onQueueOverflow();
     return false;
   }
   else
@@ -156,9 +160,11 @@ void esp32ModbusRTU::_handleConnection(esp32ModbusRTU *instance)
         response = instance->_receive(request);
       } while (!response->isSucces() && transmissionAttempts < MAX_TRANSMISSION_ATTEMPTS);
       transmissionAttempts = 0;
+      instance->statistics.onPacketSent();
 
       if (response->isSucces())
       {
+        instance->statistics.onSuccess();
         // if the non-token onData handler is set, call it
         if (instance->_onData)
           // instance->_onData(
@@ -188,6 +194,7 @@ void esp32ModbusRTU::_handleConnection(esp32ModbusRTU *instance)
       }
       else
       {
+        instance->statistics.onError(response->getError());
         // Same for error responses. non-token onError set?
         if (instance->_onError)
           instance->_onError(response->getError());
