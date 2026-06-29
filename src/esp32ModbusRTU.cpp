@@ -134,7 +134,7 @@ bool esp32ModbusRTU::_addToQueue(ModbusRequest *request)
   {
     delete request;
     // buffer full, packets are lost
-    statistics.onQueueOverflow();
+    statistics.onModbusError(esp32ModbusStatistics::ModbusError::QUEUE_OVERFLOW);
     return false;
   }
   else
@@ -194,7 +194,7 @@ void esp32ModbusRTU::_handleConnection(esp32ModbusRTU *instance)
       }
       else
       {
-        instance->statistics.onError(response->getError());
+        instance->statistics.onEsp32ModbusError(response->getError());
         // Same for error responses. non-token onError set?
         if (instance->_onError)
           instance->_onError(response->getError());

@@ -1,7 +1,6 @@
 #include "esp32ModbusStatistics.h"
-#include "Arduino.h"
 
-esp32ModbusStatistics::Statistics::Statistics() {}
+esp32ModbusStatistics::Statistics::Statistics() : _status(ModbusStatus::OK) {}
 
 bool esp32ModbusStatistics::Statistics::begin()
 {
@@ -16,137 +15,104 @@ void esp32ModbusStatistics::Statistics::onPacketSent()
 
 void esp32ModbusStatistics::Statistics::onSuccess()
 {
-    _successfulPackets++;
+    _updateStatus(true);
 }
 
-void esp32ModbusStatistics::Statistics::onQueueOverflow()
+void esp32ModbusStatistics::Statistics::onModbusError(ModbusError code)
 {
-    _queueOverflow++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onError(esp32Modbus::Error code)
-{
+    _updateStatus(false);
     switch (code)
     {
-    case esp32Modbus::Error::ILLEGAL_FUNCTION:
-        onIllegalFunction();
+    case ModbusError::ILLEGAL_FUNCTION:
+        _illegalFunctions++;
         break;
-    case esp32Modbus::Error::ILLEGAL_DATA_ADDRESS:
-        onIllegalDataAddress();
+    case ModbusError::ILLEGAL_DATA_ADDRESS:
+        _illegalDataAddresses++;
         break;
-    case esp32Modbus::Error::ILLEGAL_DATA_VALUE:
-        onIllegalDataValue();
+    case ModbusError::ILLEGAL_DATA_VALUE:
+        _illegalDataValues++;
         break;
-    case esp32Modbus::Error::SERVER_DEVICE_FAILURE:
-        onServerDeviceFailure();
+    case ModbusError::SERVER_DEVICE_FAILURE:
+        _serverDeviceFailures++;
         break;
-    case esp32Modbus::Error::ACKNOWLEDGE:
-        onAcknowledge();
+    case ModbusError::ACKNOWLEDGE:
+        _acks++;
         break;
-    case esp32Modbus::Error::SERVER_DEVICE_BUSY:
-        onServerDeviceBusy();
+    case ModbusError::SERVER_DEVICE_BUSY:
+        _serverDeviceBusyErrors++;
         break;
-    case esp32Modbus::Error::NEGATIVE_ACKNOWLEDGE:
-        onNegativeAcknowledge();
+    case ModbusError::NEGATIVE_ACKNOWLEDGE:
+        _negativeAcks++;
         break;
-    case esp32Modbus::Error::MEMORY_PARITY_ERROR:
-        onMemoryParityError();
+    case ModbusError::MEMORY_PARITY_ERROR:
+        _memoryParityErrors++;
         break;
-    case esp32Modbus::Error::TIMEOUT:
-        onTimeout();
+    case ModbusError::TIMEOUT:
+        _timeouts++;
         break;
-    case esp32Modbus::Error::INVALID_SLAVE:
-        onInvalidSlave();
+    case ModbusError::INVALID_SLAVE:
+        _invalidSlaves++;
         break;
-    case esp32Modbus::Error::INVALID_FUNCTION:
-        onInvalidFunction();
+    case ModbusError::INVALID_FUNCTION:
+        _invalidFunctions++;
         break;
-    case esp32Modbus::Error::CRC_ERROR:
-        onCRCError();
+    case ModbusError::CRC_ERROR:
+        _crcErrors++;
         break;
-    case esp32Modbus::Error::COMM_ERROR:
-        onCommError();
+    case ModbusError::COMM_ERROR:
+        _commErrors++;
+        break;
+    case ModbusError::QUEUE_OVERFLOW:
+        _queueOverflow++;
+    default:
         break;
     }
 }
 
-void esp32ModbusStatistics::Statistics::onIllegalFunction()
+void esp32ModbusStatistics::Statistics::onEsp32ModbusError(esp32Modbus::Error code)
 {
-    _illegalFunctions++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onIllegalDataAddress()
-{
-    _illegalDataAddresses++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onIllegalDataValue()
-{
-    _illegalDataValues++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onServerDeviceFailure()
-{
-    _serverDeviceFailures++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onAcknowledge()
-{
-    _acknowledges++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onServerDeviceBusy()
-{
-    _serverDeviceBusyErrors++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onNegativeAcknowledge()
-{
-    _negativeAcknowledges++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onMemoryParityError()
-{
-    _memoryParityErrors++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onTimeout()
-{
-    _timeouts++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onInvalidSlave()
-{
-    _invalidSlaves++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onInvalidFunction()
-{
-    _invalidFunctions++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onCRCError()
-{
-    _crcErrors++;
-    _totalErrors++;
-}
-
-void esp32ModbusStatistics::Statistics::onCommError()
-{
-    _commErrors++;
-    _totalErrors++;
+    switch (code)
+    {
+    case esp32Modbus::Error::ILLEGAL_FUNCTION:
+        onModbusError(ModbusError::ILLEGAL_FUNCTION);
+        break;
+    case esp32Modbus::Error::ILLEGAL_DATA_ADDRESS:
+        onModbusError(ModbusError::ILLEGAL_DATA_ADDRESS);
+        break;
+    case esp32Modbus::Error::ILLEGAL_DATA_VALUE:
+        onModbusError(ModbusError::ILLEGAL_DATA_VALUE);
+        break;
+    case esp32Modbus::Error::SERVER_DEVICE_FAILURE:
+        onModbusError(ModbusError::SERVER_DEVICE_FAILURE);
+        break;
+    case esp32Modbus::Error::ACKNOWLEDGE:
+        onModbusError(ModbusError::ACKNOWLEDGE);
+        break;
+    case esp32Modbus::Error::SERVER_DEVICE_BUSY:
+        onModbusError(ModbusError::SERVER_DEVICE_BUSY);
+        break;
+    case esp32Modbus::Error::NEGATIVE_ACKNOWLEDGE:
+        onModbusError(ModbusError::NEGATIVE_ACKNOWLEDGE);
+        break;
+    case esp32Modbus::Error::MEMORY_PARITY_ERROR:
+        onModbusError(ModbusError::MEMORY_PARITY_ERROR);
+        break;
+    case esp32Modbus::Error::TIMEOUT:
+        onModbusError(ModbusError::TIMEOUT);
+        break;
+    case esp32Modbus::Error::INVALID_SLAVE:
+        onModbusError(ModbusError::INVALID_SLAVE);
+        break;
+    case esp32Modbus::Error::INVALID_FUNCTION:
+        onModbusError(ModbusError::INVALID_FUNCTION);
+        break;
+    case esp32Modbus::Error::CRC_ERROR:
+        onModbusError(ModbusError::CRC_ERROR);
+        break;
+    case esp32Modbus::Error::COMM_ERROR:
+        onModbusError(ModbusError::COMM_ERROR);
+        break;
+    }
 }
 
 float esp32ModbusStatistics::Statistics::getRunningTime()
@@ -161,7 +127,7 @@ uint32_t esp32ModbusStatistics::Statistics::getTotalPacketSent()
 
 uint32_t esp32ModbusStatistics::Statistics::getSuccessfulPackets()
 {
-    return _successfulPackets;
+    return _totalSuccessfulPackets;
 }
 
 uint32_t esp32ModbusStatistics::Statistics::getTotalErrors()
@@ -222,13 +188,13 @@ uint32_t esp32ModbusStatistics::Statistics::getErrorCount(esp32Modbus::Error cod
         return getServerDeviceFailures();
         break;
     case esp32Modbus::Error::ACKNOWLEDGE:
-        return getAcknowledges();
+        return getAcks();
         break;
     case esp32Modbus::Error::SERVER_DEVICE_BUSY:
         return getServerDeviceBusyErrors();
         break;
     case esp32Modbus::Error::NEGATIVE_ACKNOWLEDGE:
-        return getNegativeAcknowledges();
+        return getNegativeAcks();
         break;
     case esp32Modbus::Error::MEMORY_PARITY_ERROR:
         return getMemoryParityErrors();
@@ -274,9 +240,9 @@ uint32_t esp32ModbusStatistics::Statistics::getServerDeviceFailures()
     return _serverDeviceFailures;
 }
 
-uint32_t esp32ModbusStatistics::Statistics::getAcknowledges()
+uint32_t esp32ModbusStatistics::Statistics::getAcks()
 {
-    return _acknowledges;
+    return _acks;
 }
 
 uint32_t esp32ModbusStatistics::Statistics::getServerDeviceBusyErrors()
@@ -284,9 +250,9 @@ uint32_t esp32ModbusStatistics::Statistics::getServerDeviceBusyErrors()
     return _serverDeviceBusyErrors;
 }
 
-uint32_t esp32ModbusStatistics::Statistics::getNegativeAcknowledges()
+uint32_t esp32ModbusStatistics::Statistics::getNegativeAcks()
 {
-    return _negativeAcknowledges;
+    return _negativeAcks;
 }
 
 uint32_t esp32ModbusStatistics::Statistics::getMemoryParityErrors()
@@ -319,6 +285,32 @@ uint32_t esp32ModbusStatistics::Statistics::getCommErrors()
     return _commErrors;
 }
 
+uint16_t esp32ModbusStatistics::Statistics::getErrorCounter()
+{
+    return _errorCounter;
+}
+
+esp32ModbusStatistics::ModbusStatus esp32ModbusStatistics::Statistics::getStatus()
+{
+    return _status;
+}
+
+String esp32ModbusStatistics::Statistics::printStatus()
+{
+    switch (_status)
+    {
+    case esp32ModbusStatistics::ModbusStatus::OK:
+        return "OK";
+        break;
+    case esp32ModbusStatistics::ModbusStatus::WARNING:
+        return "WARNING";
+        break;
+    case esp32ModbusStatistics::ModbusStatus::ALARM:
+        return "ALARM";
+        break;
+    }
+}
+
 void esp32ModbusStatistics::Statistics::reset()
 {
     _startTime = millis();
@@ -329,14 +321,46 @@ void esp32ModbusStatistics::Statistics::reset()
     _illegalDataAddresses = 0;
     _illegalDataValues = 0;
     _serverDeviceFailures = 0;
-    _acknowledges = 0;
+    _acks = 0;
     _serverDeviceBusyErrors = 0;
-    _negativeAcknowledges = 0;
+    _negativeAcks = 0;
     _memoryParityErrors = 0;
     _timeouts = 0;
     _invalidSlaves = 0;
     _invalidFunctions = 0;
     _crcErrors = 0;
     _commErrors = 0;
-    _successfulPackets = 0;
+    _totalSuccessfulPackets = 0;
+    _errorCounter = 0;
+    _status = esp32ModbusStatistics::ModbusStatus::OK;
+}
+
+void esp32ModbusStatistics::Statistics::_updateStatus(bool sendSuccess)
+{
+    if (sendSuccess)
+    {
+        _totalSuccessfulPackets++;
+        if (_errorCounter > 0)
+        {
+            _errorCounter--;
+        }
+    }
+    else
+    {
+        _totalErrors++;
+        _errorCounter += ERROR_WEIGHT;
+    }
+
+    if (_errorCounter < WARNING_THRESHOLD)
+    {
+        _status = esp32ModbusStatistics::ModbusStatus::OK;
+    }
+    else if (_errorCounter < ALARM_THRESHOLD)
+    {
+        _status = esp32ModbusStatistics::ModbusStatus::WARNING;
+    }
+    else
+    {
+        _status = esp32ModbusStatistics::ModbusStatus::ALARM;
+    }
 }
